@@ -15,6 +15,7 @@
 #include <sched.h>
 #include <stdbool.h>
 #include <sys/ioctl.h>
+#include <pthread.h>
 
 #define DEBUG                           1
 #if (DEBUG == 1)
@@ -32,9 +33,9 @@
 // Enable at most one of these option
 // Priority order is: Kernel Allocator module > Huge Page > Simple Iterative mmap()
 // Are we using kernel allocator module to allocate contiguous memory?
-#define KERNEL_ALLOCATOR_MODULE         0
+#define KERNEL_ALLOCATOR_MODULE         1
 #define KERNEL_ALLOCATOR_MODULE_FILE    "/dev/kam"
-#define KERNEL_HUGEPAGE_ENABLED         1
+#define KERNEL_HUGEPAGE_ENABLED         0
 #define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
 
 #define MEM_SIZE                        (1 << 25)
@@ -53,7 +54,7 @@
 #endif
 
 #define MAX_INNER_LOOP                  10
-#define MAX_OUTER_LOOP                  100000
+#define MAX_OUTER_LOOP                  1000
 
 // Threshold for timing
 #define THRESHOLD_MULTIPLIER            5
@@ -70,7 +71,7 @@
 
 // On some systems, HW prefetch details are not well know. Use BIOS setting for
 // disabling it
-#define SOFTWARE_CONTROL_HWPREFETCH     1
+#define SOFTWARE_CONTROL_HWPREFETCH     0
 
 // Following values need not be exact, just approximation. Limits used for
 // memory allocation
@@ -106,13 +107,22 @@ bank_t banks[MAX_BANKS];
 // The program will try to test if this function/hypothesis is correct/complete
 int phy_to_bank_mapping(uint64_t phy_addr)
 {
+#if 0	
     bool bit0 = ((phy_addr >> 14) & 1);
     bool bit1 = (((phy_addr >> 15) ^ (phy_addr >> 18)) & 1);
     bool bit2 = (((phy_addr >> 16) ^ (phy_addr >> 19)) & 1);
     bool bit3 = (((phy_addr >> 17) ^ (phy_addr >> 20)) & 1);
     bool bit4 = (((phy_addr >> 12) ^ (phy_addr >> 13) ^ (phy_addr >> 14) ^
-		  (phy_addr >> 15) ^ (phy_addr >> 16)) & 1);    
+		  (phy_addr >> 15) ^ (phy_addr >> 16)) & 1);
     return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3) | (bit4 << 4));
+	
+#else
+	bool bit0 = ((phy_addr >> 12) & 1);
+	bool bit1 = ((phy_addr >> 13) & 1);
+	bool bit2 = ((phy_addr >> 14) & 1);
+	bool bit3 = ((phy_addr >> 11) & 1);	
+    return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3));	
+#endif
 }
 
 static void init_banks(void)
@@ -235,11 +245,35 @@ static int enable_prefetch(int core, uint64_t flag)
 }
 #endif /* SOFTWARE_CONTROL_HWPREFETCH == 1 */
 
+#if defined(__aarch64__)
+static volatile uint64_t counter = 0;
+static pthread_t count_thread;
+
+static void *countthread(void *dummy) {
+  uint64_t local_counter = 0;
+  while (1) {
+    local_counter++;
+    counter = local_counter;
+  }
+  return NULL;
+}
+#endif
+
 static inline uint64_t currentTicks(void)
 {
       unsigned int a, d;
+#if defined(__aarch64__)
+	  asm volatile ("DSB SY");
+	  return counter;
+#elif defined(__x86_64__)
       asm volatile("rdtsc" : "=a" (a), "=d" (d));
+#endif
       return (uint64_t)(a) | ((uint64_t)(d) << 32);
+}
+
+static int comparator(const void *p, const void *q)
+{
+  return *(int *)p > *(int *)q;
 }
 
 // Returns the avg time
@@ -251,35 +285,62 @@ double find_read_time(void *_a, void *_b, double threshold)
     uint64_t start_ticks, end_ticks, ticks;
     uint64_t min_ticks, max_ticks, sum_ticks;
     double avg_ticks;
-    int sum;
-
+    uint64_t sum = 0;
+	int ticks_array[MAX_OUTER_LOOP];
+	
     assert((uintptr_t)(a) == (uintptr_t)(_a));
     assert((uintptr_t)(b) == (uintptr_t)(_b));
 
     *(uint64_t *)(_a) = 0;
     *(uint64_t *)(_b) = 0;
+
+	/* printf("*a=%ld, *b=%ld, sum=%ld\n", */
+	/* 	   *(uint64_t *)(_a), *(uint64_t *)(_b), sum); */
+	
     for (i = 0, sum_ticks = 0, min_ticks = LONG_MAX, max_ticks = 0;
             i < MAX_OUTER_LOOP; i++) {
-        
+
         start_ticks = currentTicks();
         for (j = 0, sum = 0; j < MAX_INNER_LOOP; j++) {
+#if defined(__x86_64__)			
             asm volatile ("addl (%1), %0\n\t"
                           "addl (%2), %0\n\t"
                           "clflush (%1)\n\t"
                           "clflush (%2)\n\t"
                           "mfence\n\t": "=r" (sum) : "r" (a), "r" (b) : "memory");
+#elif defined(__aarch64__)
+			asm volatile (
+				"DSB SY\n"
+				"LDR X5, [%[ad1]]\n"
+				"LDR X6, [%[ad2]]\n"
+				"ADD %[out], X5, X6\n"
+				"DC CIVAC, %[ad1]\n"
+				"DC CIVAC, %[ad2]\n"
+				"DSB SY\n"
+				: [out] "=r" (sum) : [ad1] "r" (a), [ad2] "r" (b) : "x5", "x6");
+#endif
         }
         end_ticks = currentTicks();
 
-        ticks = end_ticks - start_ticks;
-        assert(ticks > 0);
         assert(*(uint64_t *)_a == 0);
         assert(*(uint64_t *)_b == 0);
         // TODO: Why is sum not zero?
-        //if (sum != 0)
-        //    printf("Sum is:%d\n", sum);
-        //assert(sum == 0);
+        if (sum != 0)
+            printf("i=%d, *a=%ld, *b=%ld, sum=%ld\n",
+				   i, *(uint64_t *)(_a), *(uint64_t *)(_b), sum);
+        assert(sum == 0);
 
+        ticks = end_ticks - start_ticks;
+
+		ticks_array[i] = (int)ticks;
+		
+		// dprintf("ticks = %ld\n", ticks);
+        // assert(ticks > 0);
+		if (ticks == 0) {
+			dprintf("discard and continue\n");
+			i--;
+			continue;
+		}
         /* As there are timer interrupts, we reject outliers based on threshold */
         if ((double)(ticks) > threshold) {
             i--;
@@ -290,9 +351,11 @@ double find_read_time(void *_a, void *_b, double threshold)
         sum_ticks += ticks;
     }
 
+	qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
+	
     avg_ticks = (sum_ticks * 1.0f) / MAX_OUTER_LOOP;
-    dprintf("Avg Ticks: %0.3f,\tMax Ticks: %ld,\tMin Ticks: %ld\n",
-            avg_ticks, max_ticks, min_ticks);
+    dprintf("Avg Ticks: %0.3f\t Med Ticks: %d\tMax Ticks: %ld\tMin Ticks: %ld\n",
+            avg_ticks, ticks_array[MAX_OUTER_LOOP/2], max_ticks, min_ticks);
     return avg_ticks;
 }
 
@@ -390,7 +453,9 @@ void *mmap_contiguous(size_t len, uint64_t *phy_start_addr)
 
     dprintf("Device allocate: Virt Addr: %p, Phy Addr: %p, Len: 0x%lx\n",
             ret, (void *)*phy_start_addr, len);
-   
+
+	// *(int *)ret = 0x12345678;
+	dprintf("Value [%p]=%x\n", ret, *(int *)ret);
     /*
      * TODO: Find why /proc/self/pagemap is not having proper entry 
      * for this page
@@ -502,7 +567,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
         for (j = i + 1, sum = 0; j < NUM_ENTRIES; j++) {
             a = entries[i].virt_addr;
             b = entries[j].virt_addr;
-            dprintf("Reading Time: PhyAddr1: 0x%lx,\t PhyAddr2:0x%lx\n",
+            dprintf("Reading Time: PhyAddr1: 0x%lx\t PhyAddr2: 0x%lx\n",
                     entries[i].phy_addr, entries[j].phy_addr);
             avgs[j] = find_read_time((void *)a, (void *)b, threshold);
             sum += avgs[j];
@@ -568,6 +633,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
     }
 
     free(avgs);
+	
 }
 
 
@@ -656,9 +722,20 @@ int main()
     uint64_t pflag;
     int core;
 #endif
-
+#if defined(__aarch64__)
+	int r = pthread_create(&count_thread, 0, countthread , 0);
+    if (r != 0) {
+      return -1;
+    }
+    printf("Waiting the counter thread...");
+    while(counter == 0) {
+		asm volatile("DSB SY");
+	}
+    printf("Done: %ld\n", counter);    
+#endif
+	
     // TODO: Install sigsegv handler
-    printf("This program needs root permissions and currently only supports x86/x86-64\n");
+    printf("This program needs root permissions and currently only supports x86/x86-64 & ARMv8\n");
     printf("Please don't terminate the program by Ctrl-C\n");
     
 #if (SOFTWARE_CONTROL_HWPREFETCH == 1)
@@ -676,6 +753,12 @@ int main()
     }
 
     init_banks();
+
+	printf("v: 0x%p, p: 0x%lx, p: 0x%lx\n",
+		   virt_start,
+		   phy_start,
+		   get_physical_addr((uintptr_t)virt_start));
+	
     init_entries((uint64_t)virt_start, phy_start);
    
     run_exp((uint64_t)virt_start, phy_start);

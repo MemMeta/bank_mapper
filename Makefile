@@ -1,12 +1,12 @@
 LCC=gcc
-LCFLAGS=-Werror -Wall -O1 -g3
+LCFLAGS= -Wall -O1 -g3
 KOBJECT=kam
 OBJECT=bank_test
 
 all: $(OBJECT) $(KOBJECT)
 
 bank_test: bank_test.c
-	$(LCC) $(LCFLAGS) -o $@ $?
+	$(LCC) $(LCFLAGS) -o $@ $? -lpthread
 
 
 obj-m += $(KOBJECT).o

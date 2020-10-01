@@ -38,7 +38,9 @@ long get_pfn_of_virtual_address(struct vm_area_struct *vma,
         unsigned long address, unsigned long *pfn) { 
 
     pgd_t *pgd;
+#if !defined(__aarch64__)
     p4d_t *p4d;
+#endif
     pud_t *pud; 
     pmd_t *pmd; 
     pte_t *ptep; 
@@ -49,12 +51,15 @@ long get_pfn_of_virtual_address(struct vm_area_struct *vma,
     if (pgd_none(*pgd) || unlikely(pgd_bad(*pgd))) 
         return -EFAULT; 
 
+#if defined(__aarch64__)
+    pud = pud_offset(pgd, address);	
+#else
     p4d = p4d_offset(pgd, address);
     if (p4d_none(*p4d) || unlikely(p4d_bad(*p4d))) {
         return -EFAULT;
     }
-
-    pud = pud_offset(p4d, address); 
+    pud = pud_offset(p4d, address);
+#endif
     if (pud_none(*pud) || unlikely(pud_bad(*pud))) 
         return -EFAULT; 
 
@@ -65,7 +70,7 @@ long get_pfn_of_virtual_address(struct vm_area_struct *vma,
     ptep = pte_offset_map_lock(mm, pmd, address, &ptl); 
     *pfn = pte_pfn(*ptep); 
     pte_unmap_unlock(ptep, ptl); 
-
+	
     return 0; 
 
 } 
@@ -75,7 +80,7 @@ static int kam_mmap(struct file *filp, struct vm_area_struct *vma)
     size_t size = vma->vm_end - vma->vm_start;
     size_t nrpages = size / PAGE_SIZE;
     size_t alloc_size = size + 2 * PAGE_SIZE;
-    unsigned long vaddr;
+    unsigned long vaddr, paddr;
     int i, ret = 0;
 
     pr_info("mmap\n");
@@ -89,33 +94,47 @@ static int kam_mmap(struct file *filp, struct vm_area_struct *vma)
     }
 
     vma->vm_flags |= VM_DONTEXPAND | VM_DONTCOPY | VM_LOCKED | VM_DONTDUMP;
-    
-    info->pages = kmalloc(alloc_size, GFP_HIGHUSER);
+
+	// kmalloc return kernel logical address
+    info->pages = kmalloc(alloc_size, GFP_HIGHUSER | __GFP_DIRECT_RECLAIM);
     if (info->pages == NULL) {
-       
-        info->pages = dma_alloc_coherent(dev, alloc_size, &info->dma_addr, GFP_HIGHUSER);
+		pr_err("kmalloc failed. try dma_alloc_coherent\n");
+		dma_set_coherent_mask(dev, DMA_BIT_MASK(64));
+		// dma alloc return kernel virtual address
+        info->pages = dma_alloc_coherent(dev, alloc_size, &info->dma_addr, GFP_KERNEL);
         if (info->pages == NULL) { 
-            pr_err("Couldn't kmalloc\n");
+            pr_err("Couldn't dma_alloc_coherent\n");
             return -ENOMEM;
         }
         info->using_coherent = 1;
     }
-
+	vaddr = ((unsigned long)(info->pages) + PAGE_SIZE - 1) & PAGE_MASK;
+	if (info->using_coherent)
+		paddr = (info->dma_addr + PAGE_SIZE - 1) & PAGE_MASK ;
+	else
+		paddr = virt_to_phys((void *)vaddr);
+	
     info->alloc_size = alloc_size;
 
-    vaddr = ((unsigned long)(info->pages) + PAGE_SIZE - 1) & PAGE_MASK;
-    if (remap_pfn_range(vma,
-			    vma->vm_start,
-			    virt_to_phys((void *)vaddr) >> PAGE_SHIFT,
-			    size,
-			    PAGE_SHARED)) {
+	pr_info("alloc success: vaddr=%p, paddr=%p\n", (void *)vaddr, (void *)paddr);
 
+	*((int *)vaddr) = 0x00000000;	
+	pr_info("*(int *)[%p]: 0x%x\n", (void *)vaddr, *((int *)vaddr));	
+	*((int *)vaddr) = 0x12345678;
+	pr_info("*(int *)[%p]: 0x%x\n", (void *)vaddr, *((int *)vaddr));
+	
+    if (remap_pfn_range(vma,
+						vma->vm_start,
+						paddr >> PAGE_SHIFT,
+						size,
+						PAGE_SHARED))
+	{
         pr_err("Couldn't map pages");
 		ret = -EAGAIN;
         goto err;
 	}
 
-    info->phy_start_addr = virt_to_phys((void *)vaddr);
+    info->phy_start_addr = paddr;
 
 /* TODO: Not working currently
     // Try to pin the pages
@@ -129,19 +148,21 @@ static int kam_mmap(struct file *filp, struct vm_area_struct *vma)
 */  
     info->count = 1;
 
-    pr_info("mmap done: Virt: %p, Phys %p\n", (void *)vaddr,
-            (void *)virt_to_phys((void *)vaddr));
+    pr_info("mmap done: Virt: %p, Phys %p\n", (void *)vaddr, (void *)paddr);
 
+#if 0
     for (i = 0; i < nrpages; i++) {
         unsigned long v = vma->vm_start + i * PAGE_SIZE;
         unsigned long pfn;
         int ret;
-        
+
         ret = get_pfn_of_virtual_address(vma, v, &pfn); 
 
         pr_info("User:Virt:%p, Phy:%p, Ret:%d\n", (void *)v,
                 (void *)(pfn << PAGE_SHIFT), ret);
+
     }
+#endif	
     return 0;
 
 err:
