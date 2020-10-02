@@ -38,7 +38,7 @@
 #define KERNEL_HUGEPAGE_ENABLED         0
 #define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
 
-#define MEM_SIZE                        (1 << 25)
+#define MEM_SIZE                        (1 << 22)
 
 // Using mmap(), we might/might not get contigous pages. We need to try multiple
 // times.
@@ -581,7 +581,8 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
         }
 
         running_avg = sum / sub_entries;
-        running_threshold = 1800.0; // (running_avg * (100.0 + OUTLIER_PERCENTAGE)) / 100.0;
+        running_threshold = (running_avg * (100.0 + OUTLIER_PERCENTAGE)) / 100.0;
+		dprintf("running_threshold: %.0f\n", running_threshold);
         entry->associated = false;
         for (j = i + 1, num_outlier = 0, nearest_nonoutlier = 0;
                 j < NUM_ENTRIES; j++) {
@@ -731,6 +732,9 @@ int main()
 		   virt_start,
 		   phy_start,
 		   get_physical_addr((uintptr_t)virt_start));
+
+	printf("mem_size: %d\tnum_entries: %d\tmin_bank_sz: %d\tsizeof(entires): %d\n",
+		   MEM_SIZE, NUM_ENTRIES, MIN_BANK_SIZE, (int)sizeof(entries));
 	
     init_entries((uint64_t)virt_start, phy_start);
    
