@@ -38,7 +38,7 @@
 #define KERNEL_HUGEPAGE_ENABLED         0
 #define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
 
-#define MEM_SIZE                        (1 << 22)
+#define MEM_SIZE                        (1 << 25)
 
 // Using mmap(), we might/might not get contigous pages. We need to try multiple
 // times.
