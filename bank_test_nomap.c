@@ -570,15 +570,15 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
         for (j = i + 1, sum = 0; j < NUM_ENTRIES; j++) {
             a = entries[i].virt_addr;
             b = entries[j].virt_addr;
-            dprintf("Reading Time: PhyAddr1: 0x%lx\t PhyAddr2: 0x%lx\n",
-                    entries[i].phy_addr, entries[j].phy_addr);
             avgs[j] = find_read_time((void *)a, (void *)b, threshold);
+            dprintf("Reading Time: PhyAddr1: 0x%lx\t PhyAddr2: 0x%lx\t Avg Ticks: %.0f\n",
+                    entries[i].phy_addr, entries[j].phy_addr, avgs[j]);
             sum += avgs[j];
         }
 
         running_avg = sum / sub_entries;
         running_threshold = (running_avg * (100.0 + OUTLIER_PERCENTAGE)) / 100.0;
-		dprintf("running_threshold: %.0f\n", running_threshold);
+		// dprintf("running_threshold: %.0f\n", running_threshold);
         entry->associated = false;
         for (j = i + 1, num_outlier = 0, nearest_nonoutlier = 0;
                 j < NUM_ENTRIES; j++) {
