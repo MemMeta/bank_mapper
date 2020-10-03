@@ -19,7 +19,7 @@
 
 #define DEBUG                           1
 #if (DEBUG == 1)
-#define dprintf(...)                    printf(__VA_ARGS__)
+#define dprintf(...)                    fprintf(stderr, "DEBUG:" __VA_ARGS__)
 #else
 #define dprintf(...)
 #endif
@@ -277,7 +277,7 @@ static int comparator(const void *p, const void *q)
 }
 
 // Returns the avg time
-double find_read_time(void *_a, void *_b, double threshold)
+double find_read_time(void *_a, void *_b, double low_threshold, double high_threshold)
 {
     uint64_t a = (uint64_t)(uintptr_t)_a;
     uint64_t b = (uint64_t)(uintptr_t)_b;
@@ -334,17 +334,18 @@ double find_read_time(void *_a, void *_b, double threshold)
 
         ticks = end_ticks - start_ticks;
 
-		ticks_array[i] = (int)ticks;
+		// ticks_array[i] = (int)ticks;
 		
 		// dprintf("ticks = %ld\n", ticks);
         // assert(ticks > 0);
-		if (ticks == 0) {
-			dprintf("discard and continue\n");
+		if ((double)(ticks) <= low_threshold) {
+			dprintf("ticks %ld is too low. discard and continue\n", ticks);
 			i--;
 			continue;
 		}
         /* As there are timer interrupts, we reject outliers based on threshold */
-        if ((double)(ticks) > threshold) {
+        if ((double)(ticks) > high_threshold) {
+			dprintf("ticks %ld is too high. discard and continue\n", ticks);			
             i--;
             continue;
         }
@@ -353,12 +354,14 @@ double find_read_time(void *_a, void *_b, double threshold)
         sum_ticks += ticks;
     }
 
-	qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
+	// qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
 	
     avg_ticks = (sum_ticks * 1.0f) / MAX_OUTER_LOOP;
 	med_ticks = ticks_array[MAX_OUTER_LOOP/2];
+#if 0
     dprintf("Avg Ticks: %0.3f\t Med Ticks: %d\tMax Ticks: %ld\tMin Ticks: %ld\n",
             avg_ticks, med_ticks, max_ticks, min_ticks);
+#endif	
     return avg_ticks;
 }
 
@@ -541,7 +544,7 @@ void print_binary(uint64_t v)
 void run_exp(uint64_t virt_start, uint64_t phy_start)
 {
     uintptr_t a, b;
-    double threshold = LONG_MAX;
+    double low_threshold = 0, high_threshold = LONG_MAX;
     double avg, sum, running_avg, running_threshold, nearest_nonoutlier;
     double *avgs;
     int i, j, k, num_outlier;
@@ -549,10 +552,12 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
     // Warm up - Get refined threshold 
     a = virt_start;
     b = a + sizeof(uint64_t);
-    avg = find_read_time((void *)a, (void *)b, threshold);
-    threshold = avg * THRESHOLD_MULTIPLIER;
+    avg = find_read_time((void *)a, (void *)b, 0, LONG_MAX);
 
-    dprintf("Threshold is %f\n", threshold);
+	low_threshold  = avg * 0.5;
+    high_threshold = avg * THRESHOLD_MULTIPLIER;
+
+    dprintf("Low/High thresholds: %f/%f\n", low_threshold, high_threshold);
 
     avgs = calloc(sizeof(double), NUM_ENTRIES);
     assert(avgs != NULL);
@@ -570,7 +575,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
         for (j = i + 1, sum = 0; j < NUM_ENTRIES; j++) {
             a = entries[i].virt_addr;
             b = entries[j].virt_addr;
-            avgs[j] = find_read_time((void *)a, (void *)b, threshold);
+            avgs[j] = find_read_time((void *)a, (void *)b, low_threshold, high_threshold);
             dprintf("Reading Time: PhyAddr1: 0x%lx\t PhyAddr2: 0x%lx\t Avg Ticks: %.0f\n",
                     entries[i].phy_addr, entries[j].phy_addr, avgs[j]);
             sum += avgs[j];
