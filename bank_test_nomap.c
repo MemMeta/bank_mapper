@@ -17,7 +17,7 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 
-#define DEBUG                           0
+#define DEBUG                           1
 #if (DEBUG == 1)
 #define dprintf(...)                    printf(__VA_ARGS__)
 #else
@@ -286,7 +286,7 @@ double find_read_time(void *_a, void *_b, double threshold)
     uint64_t min_ticks, max_ticks, sum_ticks;
     double avg_ticks;
 	int med_ticks;
-    uint64_t sum = 0;
+    int sum = 0;
 	int ticks_array[MAX_OUTER_LOOP];
 	
     assert((uintptr_t)(a) == (uintptr_t)(_a));
@@ -328,7 +328,7 @@ double find_read_time(void *_a, void *_b, double threshold)
         assert(*(uint64_t *)_b == 0);
         // TODO: Why is sum not zero?
         if (sum != 0)
-            printf("i=%d, *a=%ld, *b=%ld, sum=%ld\n",
+            printf("i=%d, *a=%ld, *b=%ld, sum=%d\n",
 				   i, *(uint64_t *)(_a), *(uint64_t *)(_b), sum);
         assert(sum == 0);
 
@@ -359,11 +359,7 @@ double find_read_time(void *_a, void *_b, double threshold)
 	med_ticks = ticks_array[MAX_OUTER_LOOP/2];
     dprintf("Avg Ticks: %0.3f\t Med Ticks: %d\tMax Ticks: %ld\tMin Ticks: %ld\n",
             avg_ticks, med_ticks, max_ticks, min_ticks);
-#if 0
     return avg_ticks;
-#else
-	return (double)med_ticks;
-#endif
 }
 
 uintptr_t get_physical_addr(uintptr_t virtual_addr) {
@@ -633,7 +629,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
 void check_mapping(void)
 {
     int i, j;
-    int main_bank = 0, bank;
+    int main_bank = 0; // bank;
 
     for (i = 0; i < NUM_ENTRIES; i++) {
         entry_t *entry = &entries[i];
