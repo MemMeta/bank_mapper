@@ -38,7 +38,7 @@
 #define KERNEL_HUGEPAGE_ENABLED         0
 #define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
 
-#define MEM_SIZE                        (1 << 22)
+#define MEM_SIZE                        (1 << 23)
 
 // Using mmap(), we might/might not get contigous pages. We need to try multiple
 // times.
@@ -57,7 +57,8 @@
 #define MAX_OUTER_LOOP                  1000
 
 // Threshold for timing
-#define THRESHOLD_MULTIPLIER            5
+#define HIGH_THRESHOLD_MULTIPLIER            3
+#define LOW_THRESHOLD_MULTIPLIER            0.3
 
 // By what percentage does a timing needs to be away from average to be considered
 // outlier and hence we can assume that pair of address lie on same bank, different
@@ -553,15 +554,17 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
     a = virt_start;
     b = a + sizeof(uint64_t);
     avg = find_read_time((void *)a, (void *)b, 0, LONG_MAX);
+    dprintf("row hit time: %.1f\n", avg);
 
-	low_threshold  = avg * 0.5;
-    high_threshold = avg * THRESHOLD_MULTIPLIER;
+    low_threshold  = avg * LOW_THRESHOLD_MULTIPLIER;
+    high_threshold = avg * HIGH_THRESHOLD_MULTIPLIER;
 
     dprintf("Low/High thresholds: %f/%f\n", low_threshold, high_threshold);
 
     avgs = calloc(sizeof(double), NUM_ENTRIES);
     assert(avgs != NULL);
 
+    // run the experiment: up to n*(n-1)/2 iterations
     for (i = 0; i < NUM_ENTRIES; i++) {
 
         entry_t *entry = &entries[i]; 
@@ -583,7 +586,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
 
         running_avg = sum / sub_entries;
         running_threshold = (running_avg * (100.0 + OUTLIER_PERCENTAGE)) / 100.0;
-		// dprintf("running_threshold: %.0f\n", running_threshold);
+        // dprintf("running_threshold: %.0f\n", running_threshold);
         entry->associated = false;
         for (j = i + 1, num_outlier = 0, nearest_nonoutlier = 0;
                 j < NUM_ENTRIES; j++) {

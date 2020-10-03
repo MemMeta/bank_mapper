@@ -108,7 +108,8 @@ static int kam_mmap(struct file *filp, struct vm_area_struct *vma)
         }
         info->using_coherent = 1;
     }
-	pr_info("alloc success: pages=%p, dmaaddr=%p\n", info->pages, (void *)info->dma_addr);
+	pr_info("alloc success: pages=%p, dmaaddr=%p, size=%d\n",
+			info->pages, (void *)info->dma_addr, (int)(alloc_size/1024));
 
 	vaddr = ((unsigned long)(info->pages) + PAGE_SIZE - 1) & PAGE_MASK;
 	if (info->using_coherent)
