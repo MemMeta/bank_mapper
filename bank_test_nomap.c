@@ -272,10 +272,10 @@ static inline uint64_t currentTicks(void)
       return (uint64_t)(a) | ((uint64_t)(d) << 32);
 }
 
-static int comparator(const void *p, const void *q)
-{
-  return *(int *)p > *(int *)q;
-}
+// static int comparator(const void *p, const void *q)
+//{
+//   return *(int *)p > *(int *)q;
+//}
 
 // Returns the avg time
 double find_read_time(void *_a, void *_b, double low_threshold, double high_threshold)
@@ -286,18 +286,18 @@ double find_read_time(void *_a, void *_b, double low_threshold, double high_thre
     uint64_t start_ticks, end_ticks, ticks;
     uint64_t min_ticks, max_ticks, sum_ticks;
     double avg_ticks;
-	int med_ticks;
+    // int med_ticks;
     int sum = 0;
-	int ticks_array[MAX_OUTER_LOOP];
-	
+    // int ticks_array[MAX_OUTER_LOOP];
+
     assert((uintptr_t)(a) == (uintptr_t)(_a));
     assert((uintptr_t)(b) == (uintptr_t)(_b));
 
     *(uint64_t *)(_a) = 0;
     *(uint64_t *)(_b) = 0;
 
-	/* printf("*a=%ld, *b=%ld, sum=%ld\n", */
-	/* 	   *(uint64_t *)(_a), *(uint64_t *)(_b), sum); */
+    /* printf("*a=%ld, *b=%ld, sum=%ld\n", */
+    /* 	   *(uint64_t *)(_a), *(uint64_t *)(_b), sum); */
 	
     for (i = 0, sum_ticks = 0, min_ticks = LONG_MAX, max_ticks = 0;
             i < MAX_OUTER_LOOP; i++) {
@@ -335,18 +335,17 @@ double find_read_time(void *_a, void *_b, double low_threshold, double high_thre
 
         ticks = end_ticks - start_ticks;
 
-		// ticks_array[i] = (int)ticks;
-		
-		// dprintf("ticks = %ld\n", ticks);
+        // ticks_array[i] = (int)ticks;
+        // dprintf("ticks = %ld\n", ticks);
         // assert(ticks > 0);
-		if ((double)(ticks) <= low_threshold) {
-			dprintf("ticks %ld is too low. discard and continue\n", ticks);
-			i--;
-			continue;
-		}
+        if ((double)(ticks) <= low_threshold) {
+            dprintf("ticks %ld is too low. discard and continue\n", ticks);
+            i--;
+            continue;
+        }
         /* As there are timer interrupts, we reject outliers based on threshold */
         if ((double)(ticks) > high_threshold) {
-			dprintf("ticks %ld is too high. discard and continue\n", ticks);			
+            dprintf("ticks %ld is too high. discard and continue\n", ticks);
             i--;
             continue;
         }
@@ -354,11 +353,10 @@ double find_read_time(void *_a, void *_b, double low_threshold, double high_thre
         max_ticks = ticks > max_ticks ? ticks : max_ticks;
         sum_ticks += ticks;
     }
-
-	// qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
+    // qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
 	
     avg_ticks = (sum_ticks * 1.0f) / MAX_OUTER_LOOP;
-	med_ticks = ticks_array[MAX_OUTER_LOOP/2];
+    // med_ticks = ticks_array[MAX_OUTER_LOOP/2];
 #if 0
     dprintf("Avg Ticks: %0.3f\t Med Ticks: %d\tMax Ticks: %ld\tMin Ticks: %ld\n",
             avg_ticks, med_ticks, max_ticks, min_ticks);
@@ -651,9 +649,8 @@ void check_mapping(void)
             entry_t *sibling = entry->siblings[j];
             sibling->bank = main_bank;
         }
-		banks[main_bank].main_entry = entry;
-
-		main_bank++;
+        banks[main_bank].main_entry = entry;
+        main_bank++;
     }
 
     // All entries should be assigned a bank
