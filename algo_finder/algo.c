@@ -38,8 +38,34 @@ typedef struct solution_array {
 
 } solution_array_t;
 
+#define PI4_2GB 1
 solution_array_t cpu_solution_array = {
-
+#if defined(PI4_2GB)
+    .num_solutions = 4,
+    .max_solutions = MAX_SOLUTION,
+    .s = {
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {11}
+            },
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {12}
+            },
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {13}
+            },
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {14}
+            },
+    }
+#else
     .num_solutions = 5,
     .max_solutions = MAX_SOLUTION,
     .s = {
@@ -72,7 +98,8 @@ solution_array_t cpu_solution_array = {
                 .ops = {XOR, XOR, XOR, XOR},
                 .indexes = {12, 13, 15, 16}  
             }
-    }   
+    }
+#endif	
 };
 
 void print_solution(const solution_t *s)
@@ -319,7 +346,7 @@ void find_unique(solution_array_t *sarray)
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     FILE *fp;
     char *line = NULL;
@@ -333,11 +360,15 @@ int main()
     solution_array_t temp_sarray;
     int i;
     int count;
+    char *fname = DATA_FILE;
 
     sarray.max_solutions = MAX_SOLUTION;
     sarray.num_solutions = -1;
 
-    fp = fopen(DATA_FILE, "r");
+    if (argc > 1)
+        fname = argv[1];
+	
+    fp = fopen(fname, "r");
     if (fp == NULL) {
         fprintf(stderr, "Couldn't open file\n");
         exit(EXIT_FAILURE);
@@ -395,6 +426,7 @@ exit:
 
     for (i = 0, count = 0; i < sarray.num_solutions; i++) {
         if (sarray.s[i].valid == 1) {
+			printf("\n> Solution %d:\n", count);
             print_solution(&sarray.s[i]);
             count++;
         }   

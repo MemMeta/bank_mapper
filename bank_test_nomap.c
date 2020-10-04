@@ -729,14 +729,14 @@ int main()
 
     init_banks();
 
-	printf("v: 0x%p, p: 0x%lx, p: 0x%lx\n",
-		   virt_start,
-		   phy_start,
-		   get_physical_addr((uintptr_t)virt_start));
-
-	printf("mem_size: %d\tnum_entries: %d\tmin_bank_sz: %d\tsizeof(entires): %d\n",
-		   MEM_SIZE, NUM_ENTRIES, MIN_BANK_SIZE, (int)sizeof(entries));
-	
+    printf("v: 0x%p, p: 0x%lx, p: 0x%lx\n",
+           virt_start,
+           phy_start,
+           get_physical_addr((uintptr_t)virt_start));
+    
+    printf("mem_size: %d\tnum_entries: %d\tmin_bank_sz: %d\tsizeof(entires): %d\n",
+           MEM_SIZE, NUM_ENTRIES, MIN_BANK_SIZE, (int)sizeof(entries));
+    
     init_entries((uint64_t)virt_start, phy_start);
    
     run_exp((uint64_t)virt_start, phy_start);
