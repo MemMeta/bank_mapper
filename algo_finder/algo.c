@@ -38,9 +38,11 @@ typedef struct solution_array {
 
 } solution_array_t;
 
-#define PI4_2GB 1
+#define PI4_2GB 0
+#define JETSON_NANO 1
+
 solution_array_t cpu_solution_array = {
-#if defined(PI4_2GB)
+#if PI4_2GB==1
     .num_solutions = 4,
     .max_solutions = MAX_SOLUTION,
     .s = {
@@ -64,6 +66,31 @@ solution_array_t cpu_solution_array = {
                 .depth = 1,
                 .indexes = {14}
             },
+    }
+#elif JETSON_NANO==1
+    .num_solutions = 3,
+    .max_solutions = MAX_SOLUTION,
+    .s = {
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {6}
+            },
+            {
+                .valid = 1,
+                .depth = 4,
+                .indexes = {17,21,24,25}
+            },
+            {
+                .valid = 1,
+                .depth = 5,
+                .indexes = {14,15,21,24,26}
+            },
+            /* { */
+            /*     .valid = 1, */
+            /*     .depth = 4, */
+            /*     .indexes = {8,16,19,23} */
+            /* }, */
     }
 #else
     .num_solutions = 5,
