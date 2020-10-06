@@ -68,29 +68,54 @@ solution_array_t cpu_solution_array = {
             },
     }
 #elif JETSON_NANO==1
-    .num_solutions = 3,
+    .num_solutions = 8,
     .max_solutions = MAX_SOLUTION,
     .s = {
             {
                 .valid = 1,
                 .depth = 1,
-                .indexes = {6}
+                .indexes = {11}
+            },
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {12}
+            },
+            {
+                .valid = 1,
+                .depth = 1,
+                .indexes = {13}
             },
             {
                 .valid = 1,
                 .depth = 4,
-                .indexes = {17,21,24,25}
+                .indexes = {19,20,21,24},
+                .ops = {XOR, XOR, XOR},
             },
             {
                 .valid = 1,
                 .depth = 5,
-                .indexes = {14,15,21,24,26}
+                .indexes = {14,15,17,19,22},
+                .ops = {XOR, XOR, XOR, XOR},
             },
-            /* { */
-            /*     .valid = 1, */
-            /*     .depth = 4, */
-            /*     .indexes = {8,16,19,23} */
-            /* }, */
+            {
+                .valid = 1,
+                .depth = 5,
+                .indexes = {16,17,18,22,23},
+                .ops = {XOR, XOR, XOR, XOR},
+            },
+            {
+                .valid = 1,
+                .depth = 6,
+                .indexes = {14,15,16,18,19,23},
+                .ops = {XOR, XOR, XOR, XOR, XOR},
+            },
+            {
+                .valid = 1,
+                .depth = 6,
+                .indexes = {13,14,15,17,19,22},
+                .ops = {XOR, XOR, XOR, XOR, XOR},
+            },
     }
 #else
     .num_solutions = 5,
@@ -138,7 +163,6 @@ void print_solution(const solution_t *s)
         printf("%d ", s->indexes[i]);
     }
     printf("\n");
-
     printf("Ops: ");
     for (i = 0; i < s->depth - 1; i++) {
         printf("%d ", s->ops[i]);
@@ -405,7 +429,7 @@ int main(int argc, char *argv[])
 
         /* Found new bank */
         if (read < 0 || (strncmp(line, bank_str, bank_str_len) == 0)) {
-         
+
             if (addr_count != 0) {
                 
                 temp_sarray.max_solutions = MAX_SOLUTION;
@@ -414,7 +438,17 @@ int main(int argc, char *argv[])
                 find_algo(addr, addr_count, &temp_sarray);
                 if (temp_sarray.num_solutions == 0)
                     goto exit;
-            
+
+#if 0		
+		printf("New solutions: %d\n", temp_sarray.num_solutions);
+		for (i = 0, count = 0; i < temp_sarray.num_solutions; i++) {
+		    if (temp_sarray.s[i].valid == 1) {
+			print_solution(&temp_sarray.s[i]);
+			count++;
+		    }   
+		}
+#endif
+		
                 if (find_intersection(&sarray, &temp_sarray) != 1)
                     goto exit;
 
@@ -422,12 +456,15 @@ int main(int argc, char *argv[])
                 for (i = 0; i < cpu_solution_array.num_solutions; i++) {
                     if (check(addr, addr_count, &cpu_solution_array.s[i]) != 1) {
                         fprintf(stderr, "Manual solution invalid: %d\n", i);
+			// print_solution(&cpu_solution_array.s[i]);		    
                     }
                 }   
             }
 
             addr_count = 0;
 
+	    // if (read > 0 ) fprintf(stderr "\n%s", line);
+	    
         } else {
             
             if (sscanf(line, "0x%lx", &addr[addr_count]) != 1) {
@@ -437,13 +474,22 @@ int main(int argc, char *argv[])
             }
 
 #if (DEBUG == 1)
-            printf("Got: 0x%lx\n", addr[addr_count]);
+	    fprintf(stderr, "Got: 0x%lx\n", addr[addr_count]);
 #endif
             addr_count++;
             assert(addr_count <= MAX_ADDR_PER_BANK);
         }
     }
 
+    printf("Common solutions so far: %d\n", sarray.num_solutions);
+    for (i = 0, count = 0; i < sarray.num_solutions; i++) {
+	if (sarray.s[i].valid == 1) {
+	    print_solution(&sarray.s[i]);
+	    assert (check(addr, addr_count, &sarray.s[i]) == 1);
+	    count++;
+	}   
+    }
+    
     find_unique(&sarray);
 
 exit:
@@ -451,14 +497,14 @@ exit:
     if (line)
         free(line);
 
+    printf("\n> Unique solutions\n");
     for (i = 0, count = 0; i < sarray.num_solutions; i++) {
         if (sarray.s[i].valid == 1) {
-			printf("\n> Solution %d:\n", count);
             print_solution(&sarray.s[i]);
             count++;
         }   
     }
-    printf("Number of solutions:%d\n", count);
+    printf("\nNumber of solutions:%d\n", count);
 
     exit(EXIT_SUCCESS);
 }
