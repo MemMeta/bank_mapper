@@ -1,13 +1,15 @@
 LCC=gcc
 LCFLAGS= -Wall -O1 -g3
 KOBJECT=kam
-OBJECT=bank_test bank_test_nomap
+OBJECT=bank_test bank_test_nomap bank_test_file
 
 all: $(OBJECT) $(KOBJECT)
 
 bank_test: bank_test.c
 	$(LCC) $(LCFLAGS) -o $@ $? -lpthread
 bank_test_nomap: bank_test_nomap.c
+	$(LCC) $(LCFLAGS) -o $@ $? -lpthread
+bank_test_file: bank_test_file.c
 	$(LCC) $(LCFLAGS) -o $@ $? -lpthread
 
 
