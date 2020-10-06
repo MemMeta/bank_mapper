@@ -26,6 +26,7 @@
 
 #define eprint(...)	                    fprintf(stderr, "ERROR:" __VA_ARGS__)
 
+
 #define PAGE_SHIFT                      12
 #define PAGE_SIZE                       (1 << PAGE_SHIFT)
 #define PAGE_MASK                       (PAGE_SIZE - 1)
@@ -77,7 +78,7 @@
 // Following values need not be exact, just approximation. Limits used for
 // memory allocation
 #define MIN_BANKS                       8
-#define MAX_BANKS                       64
+#define MAX_BANKS                       128
 #define MIN_BANK_SIZE                   (PAGE_SIZE/ 2)
 
 // An entry is an address we tested to see on which address it lied
@@ -118,10 +119,10 @@ int phy_to_bank_mapping(uint64_t pa)
     return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3) | (bit4 << 4));
 	
 #else
-	bool bit0 = ((pa >> 6) & 1);	
-	bool bit1 = (((pa >> 8) ^ (pa >> 16) ^ (pa >> 19) ^ (pa >> 23)) & 1);
-	bool bit2 = (((pa >> 17) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 25)) & 1);
-	bool bit3 = (((pa >> 14) ^ (pa >> 15) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 26))& 1);
+    bool bit0 = ((pa >> 6) & 1);	
+    bool bit1 = (((pa >> 8) ^ (pa >> 16) ^ (pa >> 19) ^ (pa >> 23)) & 1);
+    bool bit2 = (((pa >> 17) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 25)) & 1);
+    bool bit3 = (((pa >> 14) ^ (pa >> 15) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 26))& 1);
     return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3));	
 #endif
 }
@@ -276,6 +277,7 @@ static inline uint64_t currentTicks(void)
 //{
 //   return *(int *)p > *(int *)q;
 //}
+
 
 // Returns the avg time
 double find_read_time(void *_a, void *_b, double low_threshold, double high_threshold)
@@ -611,7 +613,6 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
 
         if (entry->associated == false) {
             entry->num_sibling = num_outlier;
-                
             for (k = 0; k < entry->num_sibling; k++) {
                 printf("Siblings: PhyAddr: 0x%lx\tPhyAddr: 0x%lx\t\t", entry->phy_addr, 
                     entry->siblings[k]->phy_addr);
@@ -651,6 +652,7 @@ void check_mapping(void)
         }
         banks[main_bank].main_entry = entry;
         main_bank++;
+	assert(main_bank <= MAX_BANKS);	
     }
 
     // All entries should be assigned a bank
@@ -687,7 +689,7 @@ void check_mapping(void)
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     void *virt_start;
     uint64_t phy_start;
@@ -750,5 +752,6 @@ int main()
         return -1;
     }
 #endif
+
     return 0;
 }
