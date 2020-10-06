@@ -3,6 +3,12 @@
  * 
  * Input file format: <paddr1> <paddr2> <cycles>
  *
+ * How to generate the input file
+ *  # ./bank_test_nomap > x.out 2> x.err
+ *  # grep Reading x.err | awk '{ print $4 " " $6 " " $9 }'  > x.time.txt
+ *  # ./bank_test_file x.time.txt 0x2c200000 > x.bank.txt
+ *
+ *  NOTE: MEM_SIZE of both bank_test_nomap and bank_test_file must be the same
  */ 
 
 /**************************************************************************
@@ -60,7 +66,7 @@ FILE *time_fp = NULL;
 #define KERNEL_ALLOCATOR_MODULE_FILE    "/dev/kam"
 #define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
 
-#define MEM_SIZE                        (1 << 24) // 1<<23 = 8 MB, 1<<24 = 16M, 1<<25 = 32M
+#define MEM_SIZE                        (1 << 23) // 1<<23 = 8 MB, 1<<24 = 16M, 1<<25 = 32M
 
 // Using mmap(), we might/might not get contigous pages. We need to try multiple
 // times.
