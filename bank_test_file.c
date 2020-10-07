@@ -3,6 +3,12 @@
  * 
  * Input file format: <paddr1> <paddr2> <cycles>
  *
+ * How to generate the input file
+ *  # ./bank_test_nomap > x.out 2> x.err
+ *  # grep Reading x.err | awk '{ print $4 " " $6 " " $9 }'  > x.time.txt
+ *  # ./bank_test_file x.time.txt 0x2c200000 > x.bank.txt
+ *
+ *  NOTE: MEM_SIZE of both bank_test_nomap and bank_test_file must be the same
  */ 
 
 /**************************************************************************
