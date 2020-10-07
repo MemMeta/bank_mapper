@@ -17,6 +17,8 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 
+#include "bank_test.h"
+
 #define DEBUG                           1
 #if (DEBUG == 1)
 #define dprintf(...)                    fprintf(stderr, "DEBUG:" __VA_ARGS__)
@@ -27,45 +29,6 @@
 #define eprint(...)	                    fprintf(stderr, "ERROR:" __VA_ARGS__)
 
 
-#define PAGE_SHIFT                      12
-#define PAGE_SIZE                       (1 << PAGE_SHIFT)
-#define PAGE_MASK                       (PAGE_SIZE - 1)
-
-// Enable at most one of these option
-// Priority order is: Kernel Allocator module > Huge Page > Simple Iterative mmap()
-// Are we using kernel allocator module to allocate contiguous memory?
-#define KERNEL_ALLOCATOR_MODULE         1
-#define KERNEL_ALLOCATOR_MODULE_FILE    "/dev/kam"
-#define KERNEL_HUGEPAGE_ENABLED         0
-#define KERNEL_HUGEPAGE_SIZE            (2 * 1024 * 1024)    // 2 MB
-
-#define MEM_SIZE                        (1 << 23)
-
-// Using mmap(), we might/might not get contigous pages. We need to try multiple
-// times.
-// Using kernel module, if we can get, we wll get all contiguous on first attempt
-#if (KERNEL_ALLOCATOR_MODULE == 1)
-#define NUM_CONTIGOUS_PAGES             (MEM_SIZE / PAGE_SIZE)
-#define MAX_MMAP_ITR                    1
-#elif (KERNEL_HUGEPAGE_ENABLED == 1)
-#define NUM_CONTIGOUS_PAGES             (MEM_SIZE > KERNEL_HUGEPAGE_SIZE ?      \
-                                        (KERNEL_HUGEPAGE_SIZE / PAGE_SIZE) :    \
-                                        (MEM_SIZE / PAGE_SIZE))
-#define MAX_MMAP_ITR                    1
-#endif
-
-#define MAX_INNER_LOOP                  10
-#define MAX_OUTER_LOOP                  1000
-
-// Threshold for timing
-#define HIGH_THRESHOLD_MULTIPLIER            3
-#define LOW_THRESHOLD_MULTIPLIER            0.3
-
-// By what percentage does a timing needs to be away from average to be considered
-// outlier and hence we can assume that pair of address lie on same bank, different
-// rows
-#define OUTLIER_PERCENTAGE              30
-
 // CORE to run on : -1 for last processor
 #define CORE                            -1
 #define IA32_MISC_ENABLE_OFFSET         0x1a4
@@ -75,15 +38,7 @@
 // disabling it
 #define SOFTWARE_CONTROL_HWPREFETCH     0
 
-// Following values need not be exact, just approximation. Limits used for
-// memory allocation
-#define MIN_BANKS                       8
-#define MAX_BANKS                       128
-#define MIN_BANK_SIZE                   (PAGE_SIZE/ 2)
 
-// An entry is an address we tested to see on which address it lied
-#define NUM_ENTRIES    ((NUM_CONTIGOUS_PAGES * PAGE_SIZE) / (MIN_BANK_SIZE))
-#define MAX_NUM_ENTRIES_IN_BANK         (NUM_ENTRIES)
 typedef struct entry {
    
     uint64_t virt_addr;
@@ -341,13 +296,13 @@ double find_read_time(void *_a, void *_b, double low_threshold, double high_thre
         // dprintf("ticks = %ld\n", ticks);
         // assert(ticks > 0);
         if ((double)(ticks) <= low_threshold) {
-            dprintf("ticks %ld is too low. discard and continue\n", ticks);
+            // dprintf("ticks %ld is too low. discard and continue\n", ticks);
             i--;
             continue;
         }
         /* As there are timer interrupts, we reject outliers based on threshold */
         if ((double)(ticks) > high_threshold) {
-            dprintf("ticks %ld is too high. discard and continue\n", ticks);
+            // dprintf("ticks %ld is too high. discard and continue\n", ticks);
             i--;
             continue;
         }
@@ -356,7 +311,7 @@ double find_read_time(void *_a, void *_b, double low_threshold, double high_thre
         sum_ticks += ticks;
     }
     // qsort((void *)ticks_array, MAX_OUTER_LOOP, sizeof(ticks_array[0]), comparator);
-	
+    
     avg_ticks = (sum_ticks * 1.0f) / MAX_OUTER_LOOP;
     // med_ticks = ticks_array[MAX_OUTER_LOOP/2];
 #if 0
@@ -574,7 +529,7 @@ void run_exp(uint64_t virt_start, uint64_t phy_start)
             continue;
 
         dprintf("Master Entry: %d\n", i);
-        
+        printf("Master Entry: %d\n", i);
         for (j = i + 1, sum = 0; j < NUM_ENTRIES; j++) {
             a = entries[i].virt_addr;
             b = entries[j].virt_addr;
@@ -700,7 +655,7 @@ int main(int argc, char *argv[])
     int core;
 #endif
 #if defined(__aarch64__)
-	int r = pthread_create(&count_thread, 0, countthread , 0);
+    int r = pthread_create(&count_thread, 0, countthread , 0);
     if (r != 0) {
       return -1;
     }
