@@ -58,29 +58,6 @@ typedef struct banks_t {
 
 bank_t banks[MAX_BANKS];
 
-// This is the crux of program. This function is a hypothesis of the 
-// physical address to dram bank mapping function.
-// It takes a physical address and returns the bank it thinks it belongs to.
-// The program will try to test if this function/hypothesis is correct/complete
-int phy_to_bank_mapping(uint64_t pa)
-{
-#if 0	
-    bool bit0 = ((phy_addr >> 14) & 1);
-    bool bit1 = (((phy_addr >> 15) ^ (phy_addr >> 18)) & 1);
-    bool bit2 = (((phy_addr >> 16) ^ (phy_addr >> 19)) & 1);
-    bool bit3 = (((phy_addr >> 17) ^ (phy_addr >> 20)) & 1);
-    bool bit4 = (((phy_addr >> 12) ^ (phy_addr >> 13) ^ (phy_addr >> 14) ^
-		  (phy_addr >> 15) ^ (phy_addr >> 16)) & 1);
-    return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3) | (bit4 << 4));
-	
-#else
-    bool bit0 = ((pa >> 6) & 1);	
-    bool bit1 = (((pa >> 8) ^ (pa >> 16) ^ (pa >> 19) ^ (pa >> 23)) & 1);
-    bool bit2 = (((pa >> 17) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 25)) & 1);
-    bool bit3 = (((pa >> 14) ^ (pa >> 15) ^ (pa >> 21) ^ (pa >> 24) ^ (pa >> 26))& 1);
-    return (bit0 | (bit1 << 1) | (bit2 << 2) | (bit3 << 3));	
-#endif
-}
 
 static void init_banks(void)
 {
@@ -416,8 +393,8 @@ void *mmap_contiguous(size_t len, uint64_t *phy_start_addr)
     dprintf("Device allocate: Virt Addr: %p, Phy Addr: %p, Len: 0x%lx\n",
             ret, (void *)*phy_start_addr, len);
 
-	// *(int *)ret = 0x12345678;
-	dprintf("Value [%p]=%x\n", ret, *(int *)ret);
+    // *(int *)ret = 0x12345678;
+    dprintf("Value [%p]=%x\n", ret, *(int *)ret);
     /*
      * TODO: Find why /proc/self/pagemap is not having proper entry 
      * for this page
